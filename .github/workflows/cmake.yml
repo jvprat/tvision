@@ -8,33 +8,29 @@ env:
 
 jobs:
   build:
-    name: Build on Linux
-
-    strategy:
-      matrix:
-        with_gpm: [true, false]
-
-    # The CMake configure and build commands are platform agnostic and should work equally
-    # well on Windows or Mac.  You can convert this to a matrix build if you need
-    # cross-platform coverage.
-    # See: https://docs.github.com/en/actions/configuring-and-managing-workflows/configuring-a-workflow#configuring-a-build-matrix
+    name: Build on Linux ${{ matrix.with_gpm }}
     runs-on: ubuntu-latest
 #    - macos-latest
 #    - windows-latest
 
+    strategy:
+      matrix:
+        with_gpm: [ "with GPM", "without GPM" ]
+        gen: [ "UnixMakefiles", "Ninja" ]
+
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install ncurses
-      run: sudo apt-get install ncurses-dev
+#    - name: Install ncurses
+#      run: sudo apt-get install ncurses-dev
 
     - name: Install GPM
       run: sudo apt-get install libgpm-dev
-      if: matrix.with_gpm == true
+      if: matrix.with_gpm == "with GPM"
 
-    - name: run-cmake
+    - name: Build with cmake
       uses: lukka/run-cmake@v3.1
-#      with:
+      with:
         # Select the mode of the action. There are three different modes: CMakeListsTxtBasic: Run CMake using a CMakeLists.txt - Basic configuration, CMakeListsTxtAdvanced: Run CMake using a CMakeLists.txt - Advanced configuration, CMakeSettingsJson: Run CMake using a CMakeSettings.json of Visual Studio.
 #        cmakeListsOrSettingsJson: # default is CMakeListsTxtBasic
         # Path to CMakeLists.txt. Used for both CMakeListsTxtBasic and CMakeListsTxtAdvanced modes.#
@@ -50,7 +46,7 @@ jobs:
         # Select the build configuration, typically Debug or Release. Used by CMakeListsTxtBasic mode.
 #        cmakeBuildType: # optional, default is Debug
         # Specify the CMake generator to use. Possible values: Ninja: Ninja, NinjaMulti: Ninja Multi-Config UnixMakefiles: Unix Makefiles, VS16Win64: Visual Studio 2019 x64, VS16Arm64: Visual Studio 2019 ARM64, VS16Arm: Visual Studio 2019 ARM, VS16Win32: Visual Studio 2019 Win32, VS15Win64: Visual Studio 2017 x64, VS15Arm64: Visual Studio 2017 ARM64, VS15Arm: Visual Studio 2017 ARM, VS15Win32: Visual Studio 2017 Win32. Used by CMakeListsTxtBasic mode.
-#        cmakeGenerator: # optional, default is Ninja
+        cmakeGenerator: ${{ matrix.gen }} # optional, default is Ninja
         # Set the build directory, i.e. where CMake generates the build system files. Defaults to `$(Build.ArtifactStagingDirectory)` for CMakeLists.txt, and to `$(Build.ArtifactStagingDirectory)/<configuration-name>` for CMakeSettings.json. Used by any mode.
 #        buildDirectory: # optional, default is ${{ github.workspace }}/../../_temp
         # Provides a mean to provide all the CMake arguments. This is required when using CMakeLists.txt in Advanced mode. For CMakeSettings.json, the arguments are already inferred, but you can append your arguments providing them here.  Used by CMakeListsTxtAdvanced and CMakeSettingsJson modes.
