@@ -26,12 +26,10 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Install ncurses
-      uses: ryankurte/action-apt@v0.1.0
-      with:
-        packages: ncurses-dev
+      run: sudo apt-get install ncurses-dev
 
     - name: Install GPM
-      run: npm publish
+      run: sudo apt-get install libgpm-dev
       if: matrix.with_gpm == true
 
     - name: run-cmake
