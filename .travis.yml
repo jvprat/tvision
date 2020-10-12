@@ -15,8 +15,6 @@ compiler:
   - gcc
 
 script:
-  - cmake --version
-  - cmake --help
-  - cmake
+  - cmake .
   - ls -l
-  - make
+  - cmake --build .
