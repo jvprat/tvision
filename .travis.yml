@@ -1,0 +1,15 @@
+language: cpp
+
+os:
+  - linux
+  - osx
+#  - windows
+
+dist: focal
+osx_image: xcode12  
+
+#sudo: require
+
+compiler:
+  - clang
+  - gcc
