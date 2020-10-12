@@ -10,9 +10,6 @@ os:
 
 # Linux config
 dist: focal
-addons:
-  apt:
-    update: true
 
 # macOS config
 osx_image: xcode12  
@@ -20,22 +17,33 @@ addons:
   homebrew:
     packages:
     - ncurses
-    update: true
 
 compiler:
   - clang
   - gcc
 
 jobs:
+  include:
+    - os: linux
+      env:
+        - GPM2=true
+        - GPM2=false
   exclude:
     - os: osx
       compiler: gcc
+    - os: osx
+      env: GPM=true
 
 before_install:
-  - if [ $TRAVIS_OS_NAME = linux ]; then
-      sudo apt-get -y install libgpm-dev;
-    else
-      brew install bar;
+  - if [[ "$GPM" == "true" ]]; then
+      if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+        sudo apt-get -y install libgpm-dev;
+      fi
+    fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+      brew update ;
+      brew install ncurses ;
+      brew link --force qt ;
     fi
 
 script:
