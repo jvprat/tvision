@@ -1,4 +1,4 @@
-name: CMake
+name: Build
 
 on: [push]
 
@@ -8,6 +8,12 @@ env:
 
 jobs:
   build:
+    name: Build on Linux
+
+    strategy:
+      matrix:
+        with_gpm: [true, false]
+
     # The CMake configure and build commands are platform agnostic and should work equally
     # well on Windows or Mac.  You can convert this to a matrix build if you need
     # cross-platform coverage.
@@ -18,6 +24,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Install ncurses
+      uses: ryankurte/action-apt@v0.1.0
+      with:
+        packages: ncurses-dev
+
+    - name: Install GPM
+      run: npm publish
+      if: with_gpm == true
 
     - name: run-cmake
       uses: lukka/run-cmake@v3.1
