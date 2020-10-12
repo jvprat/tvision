@@ -15,8 +15,9 @@ jobs:
 
     strategy:
       matrix:
-        with_gpm: [ "w/GPM", "w/o GPM" ]
-        gen: [ "UnixMakefiles", "Ninja" ]
+        with_gpm: [ "with GPM", "without GPM" ]
+        #generator: [ "UnixMakefiles", "Ninja" ]
+        #config: [ "Debug", "Release" ]
 
     steps:
     - uses: actions/checkout@v2
@@ -26,11 +27,11 @@ jobs:
 
     - name: Install GPM
       run: sudo apt-get install libgpm-dev
-      if: ${{ matrix.with_gpm == 'w/GPM' }}
+      if: ${{ matrix.with_gpm == 'with GPM' }}
 
-    - name: Build with cmake
-      uses: lukka/run-cmake@v3.1
-      with:
+#    - name: Build with cmake
+#      uses: lukka/run-cmake@v3.1
+#      with:
         # Select the mode of the action. There are three different modes: CMakeListsTxtBasic: Run CMake using a CMakeLists.txt - Basic configuration, CMakeListsTxtAdvanced: Run CMake using a CMakeLists.txt - Advanced configuration, CMakeSettingsJson: Run CMake using a CMakeSettings.json of Visual Studio.
 #        cmakeListsOrSettingsJson: # default is CMakeListsTxtBasic
         # Path to CMakeLists.txt. Used for both CMakeListsTxtBasic and CMakeListsTxtAdvanced modes.#
@@ -44,11 +45,11 @@ jobs:
         # Specify the triplet used with vcpkg. Default value is $RUNVCPKG_VCPKG_TRIPLET environment variable, which is set e.g. by the run-vcpkg. Possible values include any file name with no extension present in the vcpkgroot/trplet directory, e.g. x64-linux, x64-windows, x64-osx and so forth. Used by any mode.
 #        vcpkgTriplet: # optional
         # Select the build configuration, typically Debug or Release. Used by CMakeListsTxtBasic mode.
-#        cmakeBuildType: # optional, default is Debug
+#        cmakeBuildType: ${{ matrix.cfg }}
         # Specify the CMake generator to use. Possible values: Ninja: Ninja, NinjaMulti: Ninja Multi-Config UnixMakefiles: Unix Makefiles, VS16Win64: Visual Studio 2019 x64, VS16Arm64: Visual Studio 2019 ARM64, VS16Arm: Visual Studio 2019 ARM, VS16Win32: Visual Studio 2019 Win32, VS15Win64: Visual Studio 2017 x64, VS15Arm64: Visual Studio 2017 ARM64, VS15Arm: Visual Studio 2017 ARM, VS15Win32: Visual Studio 2017 Win32. Used by CMakeListsTxtBasic mode.
-        cmakeGenerator: ${{ matrix.gen }} # optional, default is Ninja
+#        cmakeGenerator: ${{ matrix.gen }} # optional, default is Ninja
         # Set the build directory, i.e. where CMake generates the build system files. Defaults to `$(Build.ArtifactStagingDirectory)` for CMakeLists.txt, and to `$(Build.ArtifactStagingDirectory)/<configuration-name>` for CMakeSettings.json. Used by any mode.
-#        buildDirectory: # optional, default is ${{ github.workspace }}/../../_temp
+#        buildDirectory: "build" # optional, default is ${{ github.workspace }}/../../_temp
         # Provides a mean to provide all the CMake arguments. This is required when using CMakeLists.txt in Advanced mode. For CMakeSettings.json, the arguments are already inferred, but you can append your arguments providing them here.  Used by CMakeListsTxtAdvanced and CMakeSettingsJson modes.
 #        cmakeAppendedArgs: # optional, default is 
         # The regular expression selects which CMakeSettings.json's configuration(s) to build, one or more. Used by CMakeSettingsJson mode.
@@ -66,30 +67,23 @@ jobs:
         # Specify which shell to be used when launching commands. 'true' means the default shell is used. 'false' means no shell is used. It also can be an absolute with arguments of the shell to spawn commands with.
 #        useShell: # optional, default is true
 
-#    - name: Create Build Environment
+    - name: Create Build Environment
       # Some projects don't allow in-source building, so create a separate build directory
       # We'll use this as our working directory for all subsequent commands
-#      run: cmake -E make_directory ${{runner.workspace}}/build
+      run: cmake -E make_directory ${{runner.workspace}}/build
 
-#    - name: Configure CMake
+    - name: Configure CMake
       # Use a bash shell so we can use the same syntax for environment variable
       # access regardless of the host operating system
-#      shell: bash
-#      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
       # Note the current convention is to use the -S and -B options here to specify source 
       # and build directories, but this is only available with CMake 3.13 and higher.  
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
-#      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
 
- #   - name: Build
- #     working-directory: ${{runner.workspace}}/build
- #     shell: bash
- #     # Execute the build.  You can specify a specific target with "--target <NAME>"
- #     run: cmake --build . --config $BUILD_TYPE
-
-#    - name: Test
-#      working-directory: ${{runner.workspace}}/build
-#      shell: bash
-      # Execute tests defined by the CMake configuration.  
-      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-#      run: ctest -C $BUILD_TYPE
+    - name: Build
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      # Execute the build.  You can specify a specific target with "--target <NAME>"
+      run: cmake --build . --config $BUILD_TYPE
