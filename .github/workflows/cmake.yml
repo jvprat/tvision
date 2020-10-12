@@ -32,7 +32,7 @@ jobs:
 
     - name: Install GPM
       run: npm publish
-      if: with_gpm == true
+      if: matrix.with_gpm == true
 
     - name: run-cmake
       uses: lukka/run-cmake@v3.1
