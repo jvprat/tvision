@@ -13,3 +13,10 @@ osx_image: xcode12
 compiler:
   - clang
   - gcc
+
+script:
+  - cmake --version
+  - cmake --help
+  - cmake
+  - ls -l
+  - make
