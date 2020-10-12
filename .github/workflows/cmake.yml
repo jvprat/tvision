@@ -26,7 +26,7 @@ jobs:
 
     - name: Install GPM
       run: sudo apt-get install libgpm-dev
-      if: matrix.with_gpm = "w/GPM"
+      if: ${{ matrix.with_gpm == "w/GPM" }}
 
     - name: Build with cmake
       uses: lukka/run-cmake@v3.1
