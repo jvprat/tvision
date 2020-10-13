@@ -22,8 +22,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-#    - name: Install ncurses
-#      run: sudo apt-get install ncurses-dev
+    - name: Install ncurses
+      run: sudo apt-get install ncursesw-dev
 
     - name: Install GPM
       run: sudo apt-get install libgpm-dev
