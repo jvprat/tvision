@@ -45,6 +45,7 @@ inline void setCell(TScreenCell &cell, TCellChar ch, TCellAttribs attr)
 
 #include <cstring>
 #include <type_traits>
+#include <algorithm>
 
 template<typename T>
 struct alignas(T) trivially_convertible {
@@ -77,7 +78,6 @@ protected:
     static constexpr bool check_trivial()
     {
         static_assert(std::is_trivial<C>());
-        static_assert(std::is_standard_layout<C>());
         static_assert(sizeof(C) == sizeof(T));
         static_assert(alignof(C) == alignof(T));
         return true;
@@ -114,6 +114,13 @@ struct TCellAttribs : trivially_convertible<uint16_t>
         italic      : 1,
         underline   : 1,
         reverse     : 1;
+
+private:
+    uint8_t
+        shadow      : 1;
+
+    friend struct TVWrite;
+public:
 
     using trivially_convertible::trivially_convertible;
     TCellAttribs() = default;
@@ -175,21 +182,72 @@ struct TScreenCellA : trivially_convertible<uint16_t>
 
 };
 
-struct TCellChar : trivially_convertible<uint32_t>
+struct alignas(4) TCellChar
 {
 
-    uint8_t bytes[4];
+    uint8_t bytes[12];
 
-    using trivially_convertible::trivially_convertible;
+    TCellChar() = default;
+
+    TCellChar(uint64_t ch)
+    {
+        *this = ch;
+    }
+
+    TCellChar& operator=(uint64_t ch)
+    {
+        memset(this, 0, sizeof(*this));
+        memcpy(bytes, &ch, std::min(sizeof(bytes), sizeof(ch)));
+        return *this;
+    }
+
+    bool operator==(TCellChar other) const
+    {
+        return memcmp(bytes, other.bytes, sizeof(bytes)) == 0;
+    }
+
+    bool operator!=(TCellChar other) const
+    {
+        return !(*this == other);
+    }
+
+    uint8_t& operator[](size_t i)
+    {
+        return bytes[i];
+    }
+
+    const uint8_t& operator[](size_t i) const
+    {
+        return bytes[i];
+    }
+
+    void append(TStringView text)
+    {
+        size_t sz = size();
+        if (text.size() <= sizeof(bytes) - sz)
+            memcpy(&bytes[sz], text.data(), text.size());
+    }
+
+    size_t size() const
+    {
+        size_t i = 0;
+        while (++i < sizeof(bytes) && bytes[i]);
+        return i;
+    }
+
+    TStringView asText() const
+    {
+        return {(const char*) bytes, size()};
+    }
 
     static constexpr void check_assumptions()
     {
-        check_trivial<TCellChar>();
+        static_assert(std::is_trivial<TCellChar>());
     }
 
 };
 
-struct TScreenCell : trivially_convertible<uint64_t>
+struct TScreenCell
 {
 
     TCellChar Char;
@@ -197,21 +255,26 @@ struct TScreenCell : trivially_convertible<uint64_t>
     uint8_t
         extraWidth : 3;
 
-    using trivially_convertible::trivially_convertible;
     TScreenCell() = default;
 
     TScreenCell(TScreenCellA pair)
     {
-        *this = 0;
+        *this = {};
         Char = pair.Char;
         Attr = pair.Attr;
+    }
+
+    TScreenCell(uint64_t ch)
+    {
+        memset(this, 0, sizeof(*this));
+        memcpy(this, &ch, std::min(sizeof(*this), sizeof(ch)));
     }
 
     static constexpr uint32_t wideCharTrail = (uint32_t) -2;
 
     static constexpr void check_assumptions()
     {
-        check_trivial<TScreenCell>();
+        static_assert(std::is_trivial<TScreenCell>());
     }
 
 };
@@ -259,7 +322,7 @@ inline void setCell(TScreenCell &cell, TCellChar ch, TCellAttribs attr, uchar ex
     TScreenCell c = 0;
     ::setChar(c, ch, extraWidth);
     ::setAttr(c, attr);
-    cell = c;
+    memcpy(&cell, &c, sizeof(TScreenCell));
 }
 
 #endif // __BORLANDC__

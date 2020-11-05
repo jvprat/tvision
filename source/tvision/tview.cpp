@@ -717,10 +717,10 @@ void TView::setBounds( const TRect& bounds )
 
 void TView::setCmdState(TCommandSet& commands, Boolean enable)
 {
-	if (enable)
-		enableCommands(commands);
-	else
-		disableCommands(commands);
+    if (enable)
+        enableCommands(commands);
+    else
+        disableCommands(commands);
 }
 
 void TView::setCommands( TCommandSet& commands )
@@ -799,6 +799,13 @@ void TView::sizeLimits( TPoint& min, TPoint& max )
         max = owner->size;
     else
         max.x = max.y = INT_MAX;
+}
+
+Boolean TView::textEvent( TEvent &event, TSpan<char> dest, size_t &length, size_t &count )
+{
+    if( owner )
+        return owner->textEvent( event, dest, length, count );
+    return False;
 }
 
 TView* TView::TopView()

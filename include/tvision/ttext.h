@@ -38,17 +38,20 @@ public:
     static size_t fill(TSpan<TScreenCell> cells, TStringView text, Attr &&attr);
 #endif
 
-    static void eat(TSpan<TScreenCell> cells, size_t &width, TStringView text, size_t &bytes);
+    static Boolean eat(TSpan<TScreenCell> cells, size_t &width, TStringView text, size_t &bytes);
     static void next(TStringView text, size_t &bytes, size_t &width);
     static void wseek(TStringView text, size_t &index, size_t &remainder, int count);
 
 private:
 
+#ifndef __BORLANDC__
 #ifdef _WIN32
     static int width(TStringView mbc);
 #else
     static int width(wchar_t wc);
 #endif
+    static bool isBlacklisted(TStringView mbc);
+#endif // __BORLANDC__
 
 };
 
@@ -69,14 +72,16 @@ inline size_t TText::wseek(TStringView text, int count, Boolean)
     return count > 0 ? min(count, text.size()) : 0;
 }
 
-inline void TText::eat( TSpan<TScreenCell> cells, size_t &width,
-                        TStringView text, size_t &bytes )
+inline Boolean TText::eat( TSpan<TScreenCell> cells, size_t &i,
+                           TStringView text, size_t &j )
 {
-    if (cells.size()) {
-        ::setChar(cells[0], text[0]);
-        ++width;
-        ++bytes;
+    if (i < cells.size() && j < text.size()) {
+        ::setChar(cells[i], text[j]);
+        ++i;
+        ++j;
+        return True;
     }
+    return False;
 }
 
 #pragma warn -inl
@@ -99,10 +104,10 @@ inline size_t TText::fill(TSpan<TScreenCell> cells, TStringView text, TCellAttri
 
 #pragma warn .inl
 
-inline void TText::next(TStringView text, size_t &bytes, size_t &width)
+inline void TText::next(TStringView text, size_t &index, size_t &width)
 {
-    if (text.size()) {
-        ++bytes;
+    if (index < text.size()) {
+        ++index;
         ++width;
     }
 }
@@ -168,11 +173,8 @@ inline size_t TText::fill(TSpan<TScreenCell> cells, TStringView text)
 // Note that one cell is always one column wide.
 {
     size_t w = 0, b = 0;
-    while (w < cells.size() && b < text.size())
-        TText::eat(cells.subspan(w), w, text.substr(b), b);
-    // TText::eat always increases 'w' by the width of the processed
-    // text, but it never fills more cells than there are available.
-    return std::min<size_t>(w, cells.size());
+    while (TText::eat(cells, w, text, b));
+    return w;
 }
 
 template<class Attr>
@@ -190,89 +192,133 @@ inline size_t TText::fill(TSpan<TScreenCell> cells, TStringView text, Attr &&att
 // * Otherwise, 'attr' is directly assigned to the cell's attributes.
 {
     size_t w = 0, b = 0;
-    while (w < cells.size() && b < text.size()) {
-        if constexpr (std::is_invocable<Attr, TScreenCell&>())
-            attr(cells[w]);
-        else
-            ::setAttr(cells[w], attr);
-        TText::eat(cells.subspan(w), w, text.substr(b), b);
-    }
-    return std::min<size_t>(w, cells.size());
+    do {
+        if (w < cells.size()) {
+            if constexpr (std::is_invocable<Attr, TScreenCell&>())
+                attr(cells[w]);
+            else
+                ::setAttr(cells[w], attr);
+        }
+    } while (TText::eat(cells, w, text, b));
+    return w;
 }
 
-inline void TText::eat( TSpan<TScreenCell> cells, size_t &width,
-                        TStringView text, size_t &bytes )
-// Reads a single character from a multibyte-encoded string. The display width of
-// a character may be 1 or more cells, and all such cells (from cells[0] to, at most,
-// cells[cells.size() - 1]) are updated accordingly.
+inline bool TText::isBlacklisted(TStringView mbc)
+// We want to avoid printing certain characters which are usually represented
+// differently by different terminal applications or which can combine different
+// characters together, changing the width of a whole string.
+{
+    return mbc == "\xE2\x80\x8D"; // U+200D ZERO WIDTH JOINER.
+}
+
+inline Boolean TText::eat( TSpan<TScreenCell> cells, size_t &i,
+                           TStringView text, size_t &j )
+// Reads a single character from a multibyte-encoded string, and writes it into
+// a screen cell.
 //
 // * cells: range of TScreenCells to write to. If you want the text to have attributes,
-//   you should set them on cells[0] before invoking this function.
-// * width (output parameter): gets increased by the display width of the text in cell.
+//   you should set them on cells[i] before invoking this function.
+// * i (input/output parameter): index into 'cells'. Gets increased by
+//   the display width of the text written into 'cells'.
 // * text: input text.
-// * bytes (output parameter): gets increased by the number of bytes read from 'text'.
+// * j (input/output parameter): index into 'text'. Gets increased by
+//   the number of bytes read from 'text'.
+//
+// A screen cell may contain one printable character (of width 1 or more) and several
+// combining characters appended to it (of width 0).
+//
+// So, when a zero-width character is found in 'text', it is combined with the
+// previous cell, i.e. cells[i - 1], as long as i > 0.
+//
+// Returns false when no more text can be written into 'cells'. In other words,
+// it is safe to use TText::eat in a loop, like this:
+//
+//      size_t i = 0, j = 0;
+//      while (TText::eat(cells, i, text, j));
 {
-    if (cells.size() && text.size()) {
+    if (j < text.size()) {
         wchar_t wc;
         std::mbstate_t state {};
-        int len = std::mbrtowc(&wc, text.data(), text.size(), &state);
+        int len = std::mbrtowc(&wc, &text[j], text.size() - j, &state);
         if (len <= 1) {
-            bytes += 1;
-            width += 1;
-            if (len < 0)
-                ::setChar(cells[0], CpTranslator::toUtf8Int(text[0]));
-            else if (len == 0) // '\0'
-                ::setChar(cells[0], ' ');
-            else {
-                ::setChar(cells[0], {&text[0], 1});
+            if (i < cells.size()) {
+                if (len < 0)
+                    ::setChar(cells[i], CpTranslator::toUtf8Int(text[j]));
+                else if (len == 0) // '\0'
+                    ::setChar(cells[i], ' ');
+                else {
+                    ::setChar(cells[i], {&text[j], 1});
+                }
+                i += 1;
+                j += 1;
+                return true;
             }
         } else {
 #ifdef _WIN32
-            int cWidth = TText::width({&text[0], (size_t) len});
+            int cWidth = TText::width({&text[j], (size_t) len});
 #else
             int cWidth = TText::width(wc);
 #endif
-            bytes += len;
-            if (cWidth <= 0) {
-                width += 1;
-                ::setChar(cells[0], "�");
+            if (cWidth < 0) {
+                if (i < cells.size()) {
+                    ::setChar(cells[i], "�");
+                    i += 1;
+                    j += len;
+                    return true;
+                }
+            } else if (cWidth == 0) {
+                TStringView zwc {&text[j], (size_t) len};
+                // Append to the previous cell, if present.
+                if (i > 0 && !isBlacklisted(zwc)) {
+                    size_t k = i;
+                    while (cells[--k].Char == TScreenCell::wideCharTrail && k > 0);
+                    cells[k].Char.append(zwc);
+                }
+                j += len;
+                return true;
             } else {
-                width += cWidth;
-                uchar extraWidth = std::min<size_t>(cWidth - 1, 7);
-                ::setChar(cells[0], {&text[0], (size_t) len}, extraWidth);
-                // Fill trailing cells.
-                auto attr = ::getAttr(cells[0]);
-                for (size_t i = 1; i < std::min<size_t>(cWidth, cells.size()); ++i) {
-                    auto trailCell = cells[i];
-                    ::setCell(trailCell, TScreenCell::wideCharTrail, attr);
-                    cells[i] = trailCell;
+                if (i < cells.size()) {
+                    uchar extraWidth = std::min<size_t>(cWidth - 1, 7);
+                    ::setChar(cells[i], {&text[j], (size_t) len}, extraWidth);
+                    // Fill trailing cells.
+                    auto attr = ::getAttr(cells[i]);
+                    size_t count = std::min<size_t>(extraWidth + 1, cells.size() - i);
+                    for (size_t k = 1; k < count; ++k)
+                        ::setCell(cells[i + k], TScreenCell::wideCharTrail, attr);
+                    i += count;
+                    j += len;
+                    return true;
                 }
             }
         }
     }
+    return false;
 }
 
-inline void TText::next(TStringView text, size_t &bytes, size_t &width)
+inline void TText::next(TStringView text, size_t &index, size_t &width)
 // Measures the length and width of the first character in 'text'.
 //
 // * text: input text.
-// * bytes (output parameter): gets increased by the length of the first character in 'text'.
+// * index (input/output parameter): index into 'text'. Gets increased by
+//   the length of the first character in 'text'.
 // * width (output parameter): gets increased by the display width of the first character in 'text'.
 {
-    if (text.size()) {
+    if (index < text.size()) {
         wchar_t wc;
         std::mbstate_t state {};
-        int len = std::mbrtowc(&wc, text.data(), text.size(), &state);
+        int len = std::mbrtowc(&wc, &text[index], text.size() - index, &state);
         if (len <= 1) {
-            bytes += 1;
+            index += 1;
             width += 1;
         } else {
-            bytes += len;
 #ifdef _WIN32
-            width += std::clamp<int>(TText::width({&text[0], (size_t) len}), 1, 8);
+            int cWidth = std::min<int>(TText::width({&text[index], (size_t) len}), 8);
 #else
-            width += std::clamp<int>(TText::width(wc), 1, 8);
+            int cWidth = std::min<int>(TText::width(wc), 8);
 #endif
+            if (cWidth != 0)
+                width += std::max<int>(cWidth, 1);
+            index += len;
         }
     }
 }
@@ -289,7 +335,7 @@ inline void TText::wseek(TStringView text, size_t &index, size_t &remainder, int
     if (count > 0) {
         while (index < text.size()) {
             size_t width = 0;
-            TText::next({&text[index], text.size() - index}, index, width);
+            TText::next(text, index, width);
             count -= width;
             if (count <= 0) {
                 // Immediately return when the requested width is exceeded.

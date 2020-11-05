@@ -89,7 +89,6 @@ void TGroup::changeBounds( const TRect& bounds )
         }
     else
         {
-        freeBuffer();
         setBounds( bounds );
         clip = getExtent();
         getBuffer();
@@ -225,36 +224,36 @@ TView *TGroup::first()
 
 TView* TGroup::findNext(Boolean forwards)
 {
-  TView* p, *result;
+    TView* p, *result;
 
-  result = 0;
-  if (current)
-  {
-    p = current;
-    do {
-      if (forwards)
-          p = p->next;
-      else
-        p = p->prev();
+    result = 0;
+    if( current )
+        {
+        p = current;
+        do {
+            if( forwards )
+                p = p->next;
+            else
+                p = p->prev();
 
-    } while (! (( ((p->state & (sfVisible | sfDisabled)) == sfVisible) &&
-      (p->options & ofSelectable)) || (p == current)));
+            } while( !( (((p->state & (sfVisible | sfDisabled)) == sfVisible) &&
+                        (p->options & ofSelectable)) || (p == current) ) );
 
-    if (p != current)
-       result = p;
-  }
-  return result;
+        if( p != current )
+        result = p;
+        }
+    return result;
 }
 
 Boolean TGroup::focusNext(Boolean forwards)
 {
-  TView* p;
+    TView* p;
 
-  p = findNext(forwards);
-  if (p)
-      return p->focus();
-  else
-      return True;
+    p = findNext(forwards);
+    if (p)
+        return p->focus();
+    else
+        return True;
 }
 
 TView *TGroup::firstMatch( ushort aState, ushort aOptions )
@@ -279,11 +278,7 @@ void TGroup::freeBuffer()
 {
     if( (options & ofBuffered) != 0 && buffer != 0 )
         {
-#ifdef __BORLANDC__
         TVMemMgr::freeDiscardable( buffer );
-#else
-        delete[] buffer;
-#endif
         buffer = 0;
         }
 }
@@ -291,14 +286,8 @@ void TGroup::freeBuffer()
 void TGroup::getBuffer()
 {
     if( (state & sfExposed) != 0 )
-        if( (options & ofBuffered) != 0 && (buffer == 0 ))
-            {
-#ifdef __BORLANDC__
-            TVMemMgr::allocateDiscardable( (void *&)buffer, size.x * size.y * sizeof(ushort) );
-#else
-            buffer = new TScreenCell[size.x * size.y];
-#endif
-            }
+        if( (options & ofBuffered) != 0 )
+            TVMemMgr::reallocateDiscardable( (void *&)buffer, size.x * size.y * sizeof(TScreenCell) );
 }
 
 void TGroup::getData(void *rec)
@@ -654,4 +643,4 @@ TGroup::TGroup( StreamableInit ) : TView( streamableInit )
 {
 }
 
-#endif
+#endif // NO_STREAMABLE

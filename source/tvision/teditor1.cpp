@@ -279,13 +279,18 @@ void TEditor::nextChar( TStringView s, uint &p, uint &width )
         }
 }
 
-void TEditor::formatCell( TSpan<TScreenCell> cells, uint &width,
-                          TStringView text, uint &p, TCellAttribs color )
+Boolean TEditor::formatCell( TSpan<TScreenCell> cells, uint &width,
+                             TStringView text, uint &p, TCellAttribs color )
 {
-    ::setAttr(cells[0], color);
-    size_t p_ = 0, w_ = 0;
-    TText::eat(cells, w_, text, p_);
-    p += p_; width += min(w_, cells.size());
+    if (width < cells.size())
+        ::setAttr(cells[width], color);
+    size_t p_ = 0, w_ = width;
+    if (TText::eat(cells, w_, text, p_))
+        {
+        p += p_; width = w_;
+        return True;
+        }
+    return False;
 }
 
 int TEditor::charPos( uint p, uint target )
@@ -617,10 +622,12 @@ void TEditor::handleEvent( TEvent& event )
                 if( overwrite == True && hasSelection() == False )
                     if( curPtr != lineEnd(curPtr) )
                         selEnd = nextChar(curPtr);
-                if ( !encSingleByte && event.keyDown.textLength )
-                    insertText( event.keyDown.text, event.keyDown.textLength, False);
-                else
-                    insertText( &event.keyDown.charScan.charCode, 1, False);
+
+                char buf[512];
+                size_t length;
+                while( textEvent( event, TSpan<char>(buf, sizeof(buf)), length ) )
+                    insertAndConvertText( buf, (uint) length, False );
+
                 trackCursor(centerCursor);
                 unlock();
                 }
